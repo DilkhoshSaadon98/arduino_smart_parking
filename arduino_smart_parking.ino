@@ -1,4 +1,4 @@
-#include <Wire.h>
+#include <Servo.h>
 #include <LiquidCrystal_I2C.h>
 #include <Wire.h>
 #include <hd44780.h>                        // main hd44780 header
@@ -7,25 +7,23 @@ hd44780_I2Cexp lcd;                         // declare lcd object: auto locate &
 // LCD geometry
 const int LCD_COLS = 20;
 const int LCD_ROWS = 4;
-
+Servo myservo;  
 
 const int numParkingSpaces = 14;
-const int doorServoPin = 9;
-const int irSensorPins[numParkingSpaces] = { 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16 };
+const int doorServoPin = 52;
+const int irSensorPins[numParkingSpaces] = { 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
 
 bool parkingSpaces[numParkingSpaces] = { false };  // false means empty, true means occupied
 
 void setup() {
   lcd.begin(20, 4);
-
+  Serial.begin(9600);
   lcd.setCursor(4, 2);
   lcd.print("Smart Parking");
   delay(2000);
   lcd.clear();
-
-  pinMode(doorServoPin, OUTPUT);
-  closeDoor();  // Initial state: door closed
-
+  closeDoor();                   // Initial state: door closed
+  myservo.attach(doorServoPin);  // Attach the servo to digital pin 9
   for (int i = 0; i < numParkingSpaces; i++) {
     pinMode(irSensorPins[i], INPUT);
   }
@@ -94,9 +92,7 @@ void openDoor() {
   lcd.clear();
   lcd.setCursor(4, 2);
   lcd.print("Door Opened!");
-  digitalWrite(doorServoPin, HIGH);
-  delay(2000);  // Adjust the delay according to your servo motor
-  digitalWrite(doorServoPin, LOW);
+  myservo.write(180);
 }
 
 void closeDoor() {
@@ -107,7 +103,5 @@ void closeDoor() {
   lcd.clear();
   lcd.setCursor(4, 2);
   lcd.print("Door Closed!");
-  digitalWrite(doorServoPin, HIGH);
-  delay(2000);  // Adjust the delay according to your servo motor
-  digitalWrite(doorServoPin, LOW);
+  myservo.write(0);
 }
