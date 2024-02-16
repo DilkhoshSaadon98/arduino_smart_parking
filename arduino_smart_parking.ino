@@ -1,107 +1,144 @@
 #include <Servo.h>
-#include <LiquidCrystal_I2C.h>
 #include <Wire.h>
-#include <hd44780.h>                        // main hd44780 header
-#include <hd44780ioClass/hd44780_I2Cexp.h>  // i2c expander i/o class header
-hd44780_I2Cexp lcd;                         // declare lcd object: auto locate & config exapander chip
+#include <hd44780.h>
+#include <hd44780ioClass/hd44780_I2Cexp.h>
+
+hd44780_I2Cexp lcd;  // declare lcd object: auto locate & config exapander chip
+
 // LCD geometry
 const int LCD_COLS = 20;
 const int LCD_ROWS = 4;
-Servo myservo;  
 
-const int numParkingSpaces = 14;
-const int doorServoPin = 52;
-const int irSensorPins[numParkingSpaces] = { 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
+Servo myservo;
 
-bool parkingSpaces[numParkingSpaces] = { false };  // false means empty, true means occupied
+// Define the total number of sensors
+const int totalSensors = 14;
 
+// Array to store sensor pin numbers
+const int sensorPins[] = { 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
+const int enterSensorPin = 23;
+const int doorServoPin = 22;
+// Array to store sensor names
+const String sensorNames[] = { "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S12", "S13", "S14" };
+
+// Variables to store sensor counts
+int activeSensorCount = 0;
+int inactiveSensorCount = 0;
+bool isParkFull = false;
 void setup() {
-  lcd.begin(20, 4);
   Serial.begin(9600);
-  lcd.setCursor(4, 2);
-  lcd.print("Smart Parking");
-  delay(2000);
-  lcd.clear();
-  closeDoor();                   // Initial state: door closed
-  myservo.attach(doorServoPin);  // Attach the servo to digital pin 9
-  for (int i = 0; i < numParkingSpaces; i++) {
-    pinMode(irSensorPins[i], INPUT);
+
+  myservo.attach(doorServoPin);
+  myservo.write(0);
+  // Set sensor pins as inputs
+  for (int i = 0; i < totalSensors; i++) {
+    pinMode(sensorPins[i], INPUT);
   }
+  pinMode(enterSensorPin, INPUT);
 }
 
 void loop() {
-  updateParkingStatus();
-  displayParkingStatus();
-
-  if (isCarDetected()) {
+  checkParkingStatus();
+  if (isCarDetected() && isParkFull == true) {
+    Serial.println("Carage is Full");
+  } else if (isCarDetected() && isParkFull == false) {
     openDoor();
-    delay(5000);  // Wait for 5 seconds to simulate car parking time
-    closeDoor();
   }
-
-  delay(1000);  // Adjust the delay according to your system requirements
+  delay(1000);
 }
 
-void updateParkingStatus() {
-  for (int i = 0; i < numParkingSpaces; i++) {
-    parkingSpaces[i] = digitalRead(irSensorPins[i]);
+void checkParkingStatus() {
+  for (int i = 0; i < totalSensors; i++) {
+    int sensorReading;
+
+    // Check if the sensor is S (inverted logic for sensors 1-4 and 9-14)
+    if (i < 3 || i > 6) {
+      sensorReading = digitalRead(sensorPins[i]);
+    } else {
+      sensorReading = !digitalRead(sensorPins[i]);
+    }
+
+    if (sensorReading == HIGH) {
+      activeSensorCount++;
+    } else {
+      inactiveSensorCount++;
+    }
   }
+  Serial.print("Active : ");
+  Serial.println(activeSensorCount);
+  Serial.print("UnActive : ");
+  Serial.println(inactiveSensorCount);
+  if (activeSensorCount == 14) {
+    isParkFull = true;
+    Serial.println("Full");
+  } else {
+    isParkFull = false;
+    Serial.println("NOT Full");
+  }
+  // Reset counts for the next iteration
+  activeSensorCount = 0;
+  inactiveSensorCount = 0;
 }
 
 void displayParkingStatus() {
   lcd.clear();
+  lcd.setCursor(0, 0);
   lcd.print("Parking Status:");
 
-  for (int i = 0; i < numParkingSpaces; i++) {
+  for (int i = 0; i < totalSensors; i++) {
     lcd.setCursor(0, i + 1);
-    lcd.print("Space ");
-    lcd.print(i + 1);
+    lcd.print(sensorNames[i]);
     lcd.print(": ");
-    lcd.print(parkingSpaces[i] ? "Occupied" : "Empty");
+    lcd.print(digitalRead(sensorPins[i]) == HIGH ? "Full" : "Empty");
   }
 
-  if (isParkingFull()) {
-    lcd.setCursor(0, numParkingSpaces + 1);
-    lcd.print("Garage Full!");
-  }
+  // if (isParkingFull()) {
+  //   lcd.setCursor(0, totalSensors + 1);
+  //   lcd.print("Garage Full!");
+  // }
 }
 
-bool isCarDetected() {
-  for (int i = 0; i < numParkingSpaces; i++) {
-    if (parkingSpaces[i]) {
-      return true;  // Car detected in any space
-    }
-  }
-  return false;
+bool isParkingFull(bool state) {
+  // for (int i = 0; i < totalSensors; i++) {
+  //   int stets = digitalRead(sensorPins[i]);
+  //     Serial.println(stets);
+  //   if (digitalRead(sensorPins[i]) == HIGH) {
+  //     Serial.println("Is not full");
+  //     return false;  // Parking is not full
+  //   }
+  // }
+  Serial.println(state);
+  return state;  // Parking is full
 }
-
-bool isParkingFull() {
-  for (int i = 0; i < numParkingSpaces; i++) {
-    if (!parkingSpaces[i]) {
-      return false;  // At least one space is empty
-    }
-  }
-  return true;  // All spaces are occupied
-}
-
 void openDoor() {
-  lcd.clear();
-  lcd.setCursor(2, 2);
-  lcd.print("Opening Door...");
-  delay(1000);
-  lcd.clear();
-  lcd.setCursor(4, 2);
-  lcd.print("Door Opened!");
-  myservo.write(180);
+  Serial.println("Door opened");
+  // lcd.clear();
+  // lcd.print("Opening Door...");
+  // delay(1000);
+  // lcd.clear();
+  // lcd.print("Door Opened!");
+  myservo.write(90);
+  delay(2000);  // Adjust the delay according to your servo motor
+
+  myservo.write(0);
 }
 
 void closeDoor() {
   lcd.clear();
-  lcd.setCursor(2, 2);
   lcd.print("Closing Door...");
   delay(1000);
   lcd.clear();
-  lcd.setCursor(4, 2);
   lcd.print("Door Closed!");
   myservo.write(0);
+}
+bool isCarDetected() {
+  int sensorState = digitalRead(enterSensorPin);
+  Serial.println(sensorState);
+  if (sensorState != HIGH) {
+    Serial.println("There is a Car");
+    return true;
+  } else {
+    Serial.println("There is no Car");
+    return false;
+  }
 }
