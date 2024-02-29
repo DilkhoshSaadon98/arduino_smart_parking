@@ -8,3 +8,4 @@
 8- LCD 20*4 I2C                1*
 9- Power Supply
 10- Breadboard
+11- LEDs
